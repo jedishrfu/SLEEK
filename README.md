@@ -67,6 +67,34 @@ See the following commands on how to compress and decompress your input. Replace
 ./sleek_double_decompressor_lossy compressed_file_name decompressed_file_name error_bound
 ```
 
+### L2 error bound
+
+All lossy CPU and GPU commands, in both precisions, accept an optional `-L2` flag anywhere in the
+arguments, including before the filenames. Without the flag, the existing point-wise absolute error bound
+applies. With `-L2`, `error_bound` is an absolute budget for the
+whole array: `sqrt(sum((original - reconstructed)^2)) <= error_bound`.
+This is neither RMSE nor a relative error bound. SLEEK conservatively uses a
+point-wise budget of `error_bound / sqrt(number_of_values)`.
+
+```bash
+./sleek_single_compressor_lossy -L2 input.bin compressed.bin 0.01
+./sleek_single_decompressor_lossy -L2 compressed.bin restored.bin 0.01
+```
+
+Use the same bound and norm for compression and decompression; the norm is not
+stored in the compressed file. The decompressor obtains the element count from
+the existing file header. L2 bounds must be positive and finite, and the derived
+point-wise bound must be at least the smallest positive normal value for the
+selected precision. Non-finite input values retain the codec's existing behavior;
+the numerical L2 guarantee applies to finite values (matching non-finite values
+are excluded from the error sum).
+
+For `ARTIFACT` builds, `-L2` can also appear anywhere among the arguments. The existing range-relative parameter
+is first converted to an absolute bound, then interpreted with the selected norm.
+
+Run the CPU regression checks with `python3 tests/test_l2.py` (set `CXX` to a
+C++ compiler with OpenMP support if needed).
+
 ### Detailed Explanation
 
 The codes can be found in 4 different folders, separated by lossless and lossy CPU and GPU implementations. Each folder contains a separate compressor and decompressor `.cu` or `.cpp` file for single- and double-precision, for a total of 4 files.

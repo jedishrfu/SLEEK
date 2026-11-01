@@ -41,6 +41,7 @@ Sponsor: This material is based upon work supported by the U.S. National Science
 
 #include "sleek_lossy_cpu.h"
 #include <sys/time.h>
+#include "sleek_norm.h"
 
 
 struct CPUTimer
@@ -77,7 +78,9 @@ int main(int argc, char* argv [])
   printf("CPU SLEEK 1.0: single-precision lossy compressor\n");
   printf("Copyright 2026 Texas State University\n\n");
 
-  if (argc != 4) {printf("USAGE: %s input_file_name compressed_file_name error_bound\n\n", argv[0]); return -1;}
+  const char* norm = sleek_parse_norm_flag(argc, argv);
+
+  if (argc != 4) {printf("USAGE: %s [-L2] input_file_name compressed_file_name error_bound\n\n", argv[0]); return -1;}
 
   // system check
   if (sleek_system_checks() != 0) {return -1;}
@@ -106,7 +109,7 @@ int main(int argc, char* argv [])
 
     // eb variables
     const double parameter = std::stod(argv[3]);
-    const double eb = computeNOAeb(input, num_elements, parameter);
+    const double eb = sleek_norm_error_bound(computeNOAeb(input, num_elements, parameter), num_elements, norm);
     const auto eb_info = sleek_error_bound(eb);
 
     // warm up
@@ -131,7 +134,7 @@ int main(int argc, char* argv [])
   #else
 
     // eb variables
-    const double eb = std::stod(argv[3]);
+    const double eb = sleek_norm_error_bound(std::stod(argv[3]), num_elements, norm);
     const auto eb_info = sleek_error_bound(eb);
 
     sleek_compress_cpu(eb_info, input, num_elements, hencoded, hencsize);

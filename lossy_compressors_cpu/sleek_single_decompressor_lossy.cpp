@@ -41,6 +41,7 @@ Sponsor: This material is based upon work supported by the U.S. National Science
 
 #include "sleek_lossy_cpu.h"
 #include <sys/time.h>
+#include "sleek_norm.h"
 #include "MAXABS_f32.h"
 
 
@@ -78,10 +79,12 @@ int main(int argc, char* argv [])
   printf("CPU SLEEK 1.0: single-precision lossy decompressor\n");
   printf("Copyright 2026 Texas State University\n\n");
 
+  const char* norm = sleek_parse_norm_flag(argc, argv);
+
   #if defined(ARTIFACT)
-    if (argc != 5) {printf("USAGE: %s compressed_file_name decompressed_file_name error_bound original_file_name\n\n", argv[0]); return -1;}
+    if (argc != 5) {printf("USAGE: %s [-L2] compressed_file_name decompressed_file_name error_bound original_file_name\n\n", argv[0]); return -1;}
   #else
-    if (argc != 4) {printf("USAGE: %s compressed_file_name decompressed_file_name error_bound\n\n", argv[0]); return -1;}
+    if (argc != 4) {printf("USAGE: %s [-L2] compressed_file_name decompressed_file_name error_bound\n\n", argv[0]); return -1;}
   #endif
 
   // system check
@@ -119,7 +122,7 @@ int main(int argc, char* argv [])
 
     // eb variables
     const float parameter = std::stof(argv[3]);
-    const float eb = computeNOAeb((float*) input_orig, insize_orig / sizeof(float), parameter);
+    const float eb = sleek_norm_error_bound(computeNOAeb((float*) input_orig, insize_orig / sizeof(float), parameter), pre_size / sizeof(float), norm);
     const auto eb_info = sleek_error_bound(eb);
 
     // warm up
@@ -148,7 +151,7 @@ int main(int argc, char* argv [])
   #else
 
     // eb variables
-    const float eb = std::stof(argv[3]);
+    const float eb = sleek_norm_error_bound(std::stof(argv[3]), pre_size / sizeof(float), norm);
     const auto eb_info = sleek_error_bound(eb);
 
     sleek_decompress_cpu(eb_info, hencoded, hdecoded, hdecsize);
