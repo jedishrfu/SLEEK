@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark standalone (non-ARTIFACT) SLEEK binaries with 30 round trips.
+"""Benchmark SLEEK binaries with 30 round trips.
 
 Example (run from the SLEEK directory after compiling standalone binaries):
     python3 run_sleek_sweep.py data.f32 -o results.csv
@@ -48,6 +48,8 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('input', type=Path, help='Binary float32 or float64 file')
     parser.add_argument('-o', '--output', type=Path, default=Path('sleek_results.csv'))
+    parser.add_argument('--append', action='store_true',
+                        help='Append to an existing results CSV (header must match)')
     parser.add_argument('--precision', choices=['single', 'double'], default='single')
     parser.add_argument('--backend', choices=['cpu', 'gpu'], default='cpu')
     parser.add_argument('--bin-dir', type=Path, default=Path(__file__).resolve().parent,
@@ -79,10 +81,20 @@ def main():
                 parser.error('Output CSV must differ from codec executables')
             binaries[codec, operation] = str(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    # Exclusive creation protects existing reports from accidental replacement.
-    with output.open('x', newline='') as report, tempfile.TemporaryDirectory(prefix='sleek-sweep-') as work:
+    # ARTIFACT builds require the original input for lossy decompression.
+    usage = subprocess.run([binaries['lossy', 'decompressor'], '--help'],
+                           capture_output=True, text=True, timeout=args.timeout)
+    needs_original = 'original_file_name' in usage.stdout + usage.stderr
+    has_header = args.append and output.exists() and output.stat().st_size > 0
+    if has_header:
+        with output.open(newline='') as existing:
+            if next(csv.reader(existing), None) != FIELDS:
+                parser.error('Existing output CSV has an incompatible header')
+    # Default exclusive creation protects reports; batch runs explicitly append.
+    with output.open('a' if args.append else 'x', newline='') as report, tempfile.TemporaryDirectory(prefix='sleek-sweep-') as work:
         writer = csv.DictWriter(report, fieldnames=FIELDS)
-        writer.writeheader()
+        if not has_header:
+            writer.writeheader()
         report.flush()
         compressed = Path(work) / 'compressed.bin'
         restored = Path(work) / 'restored.bin'
@@ -97,6 +109,8 @@ def main():
                 if lossy:
                     comp.append(format(epsilon, '.17g'))
                     decomp.append(format(epsilon, '.17g'))
+                    if needs_original:
+                        decomp.append(str(src))
                     if l2:
                         comp.append('-L2')
                         decomp.append('-L2')
